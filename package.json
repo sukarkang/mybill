@@ -1,0 +1,21 @@
+{
+  "name": "pppoe-billing-server",
+  "version": "1.0.0",
+  "description": "PPPoE Billing Management System dengan Multi-User & Real-time Sync",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "cors": "^2.8.5",
+    "better-sqlite3": "^9.2.2",
+    "whatsapp-web.js": "^1.23.0",
+    "qrcode": "^1.5.3",
+    "jsonwebtoken": "^9.0.2",
+    "bcryptjs": "^2.4.3",
+    "uuid": "^9.0.0",
+    "dotenv": "^16.3.1"
+  }
+}

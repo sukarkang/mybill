@@ -1,0 +1,1400 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>PPPoE Billing | Smart Management</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#4361ee',
+                        secondary: '#3a0ca3',
+                        accent: '#4cc9f0',
+                        success: '#06ffa5',
+                        warning: '#ffbe0b',
+                        danger: '#fb5607',
+                        dark: '#1a1a2e',
+                        darker: '#16213e'
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap');
+        
+        body {
+            font-family: 'Poppins', sans-serif;
+            overflow-x: hidden;
+        }
+
+        .bg-elegant {
+            min-height: 100vh;
+            position: fixed;
+            width: 100%;
+            z-index: -2;
+            background: linear-gradient(-45deg, #0f172a, #1e1b4b, #172554, #1e3a5f, #0c4a6e, #134e4a, #1e1b4b, #0f172a);
+            background-size: 400% 400%;
+            animation: gradientShift 20s ease infinite;
+        }
+        
+        @keyframes gradientShift {
+            0% { background-position: 0% 50%; }
+            25% { background-position: 50% 100%; }
+            50% { background-position: 100% 50%; }
+            75% { background-position: 50% 0%; }
+            100% { background-position: 0% 50%; }
+        }
+
+        .aurora-overlay {
+            position: fixed;
+            inset: 0;
+            z-index: -1;
+            background: linear-gradient(45deg, transparent 40%, rgba(120, 119, 198, 0.05) 45%, transparent 50%),
+                        linear-gradient(-45deg, transparent 40%, rgba(255, 119, 198, 0.05) 45%, transparent 50%);
+            background-size: 200% 200%;
+            animation: aurora 15s ease infinite;
+            pointer-events: none;
+        }
+        
+        @keyframes aurora {
+            0%, 100% { background-position: 0% 50%, 100% 50%; }
+            50% { background-position: 100% 50%, 0% 50%; }
+        }
+
+        .glass-card {
+            background: rgba(255, 255, 255, 0.03);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.3);
+        }
+        
+        .dark .glass-card {
+            background: rgba(2, 6, 23, 0.6);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        .tab-content { display: none; animation: fadeIn 0.4s ease-out; }
+        .tab-content.active { display: block; }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .sidebar {
+            transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            z-index: 50;
+        }
+        
+        @media (max-width: 768px) {
+            .sidebar { transform: translateX(-100%); }
+            .sidebar.active { transform: translateX(0); }
+        }
+
+        #overlay {
+            transition: opacity 0.3s ease;
+            pointer-events: none;
+            opacity: 0;
+            z-index: 40;
+        }
+        #overlay.active { pointer-events: auto; opacity: 1; }
+
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.2); border-radius: 10px; }
+        ::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.4); }
+
+        input, select, textarea {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            color: white;
+            transition: all 0.3s;
+        }
+        input:focus, select:focus, textarea:focus {
+            border-color: #4361ee;
+            background: rgba(255, 255, 255, 0.1);
+            outline: none;
+            box-shadow: 0 0 0 3px rgba(67, 97, 238, 0.2);
+        }
+
+        .login-input {
+            background: rgba(15, 23, 42, 0.6);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            color: white;
+        }
+    </style>
+</head>
+<body class="text-slate-200">
+
+    <div class="bg-elegant"></div>
+    <div class="aurora-overlay"></div>
+
+    <!-- Toast Notification -->
+    <div id="toast" class="fixed bottom-5 right-5 z-[100] min-w-[250px] px-4 py-3 rounded-xl shadow-xl transform translate-y-20 opacity-0 transition-all duration-300 font-medium text-sm flex items-center gap-3">
+        <i id="toast-icon" class="fas"></i>
+        <span id="toast-msg">Message</span>
+    </div>
+
+    <!-- Login Page -->
+    <div id="login-page" class="fixed inset-0 z-[60] flex items-center justify-center p-4">
+        <div class="glass-card w-full max-w-md rounded-3xl p-8 relative overflow-hidden">
+            <div class="absolute top-0 right-0 w-32 h-32 bg-primary/20 rounded-full blur-2xl -mr-10 -mt-10"></div>
+            <div class="absolute bottom-0 left-0 w-24 h-24 bg-accent/10 rounded-full blur-xl -ml-5 -mb-5"></div>
+
+            <div class="text-center mb-8 relative z-10">
+                <div class="inline-flex items-center justify-center w-20 h-20 rounded-2xl bg-gradient-to-br from-primary to-secondary mb-4 shadow-lg shadow-primary/30">
+                    <div class="flex flex-col items-center text-white">
+                        <i class="fas fa-network-wired text-2xl -mb-1"></i>
+                        <i class="fas fa-wifi text-xl"></i>
+                    </div>
+                </div>
+                <h1 class="text-2xl font-bold text-white tracking-wide">PPPoE <span class="text-primary font-light">Billing</span></h1>
+                <p class="text-slate-400 text-sm mt-1">Multi-User Management System</p>
+            </div>
+
+            <form id="login-form" class="space-y-4 relative z-10">
+                <div class="group">
+                    <label class="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-2 ml-1">Username</label>
+                    <div class="relative">
+                        <i class="fas fa-user absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-primary transition-colors"></i>
+                        <input type="text" id="login-user" class="login-input w-full pl-11 p-3.5 rounded-xl focus:ring-2 ring-primary/50 placeholder-slate-500" placeholder="Masukkan username" required>
+                    </div>
+                </div>
+                <div class="group">
+                    <label class="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-2 ml-1">Password</label>
+                    <div class="relative">
+                        <i class="fas fa-lock absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-primary transition-colors"></i>
+                        <input type="password" id="login-pass" class="login-input w-full pl-11 p-3.5 rounded-xl focus:ring-2 ring-primary/50 placeholder-slate-500" placeholder="Masukkan password" required>
+                    </div>
+                </div>
+                <button type="submit" class="w-full bg-gradient-to-r from-primary to-secondary hover:opacity-90 text-white font-bold py-4 rounded-xl shadow-lg shadow-primary/25 transition-all transform active:scale-95 mt-4">
+                    Masuk Sistem
+                </button>
+            </form>
+            
+            <div class="mt-6 text-center">
+                <p class="text-[10px] text-slate-500 font-mono">v3.0 • Multi-User Sync</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Application -->
+    <div id="app-content" class="hidden">
+        
+        <div id="overlay" class="fixed inset-0 bg-black/60 backdrop-blur-sm" onclick="toggleSidebar()"></div>
+
+        <div class="flex h-screen relative overflow-hidden">
+            <!-- Sidebar -->
+            <aside id="sidebar" class="sidebar fixed md:relative w-72 h-full glass-card border-r border-white/5 flex flex-col">
+                <div class="p-6 border-b border-white/5">
+                    <h1 class="text-xl font-bold text-white flex items-center gap-3">
+                        <div class="w-8 h-8 rounded-lg bg-gradient-to-br from-primary to-accent flex items-center justify-center">
+                            <i class="fas fa-wifi text-white text-xs"></i>
+                        </div>
+                        <span>Billing<span class="text-primary">Pro</span></span>
+                    </h1>
+                    <p class="text-[10px] text-slate-400 font-mono mt-2" id="user-role-display">LOADING...</p>
+                    
+                    <div class="mt-3 inline-flex items-center gap-2 bg-white/5 rounded-lg px-2 py-1 border border-white/10 w-auto">
+                        <div class="flex items-center justify-center w-5 h-5 rounded-full bg-primary/20 text-primary">
+                            <i class="fas fa-clock text-[9px] animate-pulse"></i>
+                        </div>
+                        <div class="flex flex-col leading-tight">
+                            <span id="live-clock" class="text-[11px] font-mono font-semibold tracking-[0.2em] text-white">00:00:00</span>
+                            <span id="live-date" class="text-[8px] text-slate-400 font-medium">-</span>
+                        </div>
+                    </div>
+                </div>
+
+                <nav class="flex-1 overflow-y-auto p-4 space-y-1">
+                    <button onclick="showTab('dashboard')" class="nav-link w-full flex items-center gap-3 p-3 rounded-xl text-slate-300 hover:bg-white/5 hover:text-white transition-all active">
+                        <i class="fas fa-th-large w-6 text-center"></i> <span class="font-medium text-sm">Dashboard</span>
+                    </button>
+                    <button onclick="showTab('transactions')" class="nav-link w-full flex items-center gap-3 p-3 rounded-xl text-slate-300 hover:bg-white/5 hover:text-white transition-all">
+                        <i class="fas fa-receipt w-6 text-center"></i> <span class="font-medium text-sm">Transaksi</span>
+                    </button>
+                    <button onclick="showTab('customers')" class="nav-link w-full flex items-center gap-3 p-3 rounded-xl text-slate-300 hover:bg-white/5 hover:text-white transition-all">
+                        <i class="fas fa-users w-6 text-center"></i> <span class="font-medium text-sm">Pelanggan</span>
+                    </button>
+                    <button onclick="showTab('whatsapp')" class="nav-link w-full flex items-center gap-3 p-3 rounded-xl text-slate-300 hover:bg-white/5 hover:text-white transition-all">
+                        <i class="fab fa-whatsapp w-6 text-center"></i> <span class="font-medium text-sm">WhatsApp</span>
+                    </button>
+                    <button onclick="showTab('reports')" class="nav-link w-full flex items-center gap-3 p-3 rounded-xl text-slate-300 hover:bg-white/5 hover:text-white transition-all">
+                        <i class="fas fa-chart-pie w-6 text-center"></i> <span class="font-medium text-sm">Laporan</span>
+                    </button>
+                    <button onclick="showTab('settings')" class="nav-link w-full flex items-center gap-3 p-3 rounded-xl text-slate-300 hover:bg-white/5 hover:text-white transition-all admin-only" style="display: none;">
+                        <i class="fas fa-cog w-6 text-center"></i> <span class="font-medium text-sm">Pengaturan</span>
+                    </button>
+                    <button onclick="showTab('users')" class="nav-link w-full flex items-center gap-3 p-3 rounded-xl text-slate-300 hover:bg-white/5 hover:text-white transition-all admin-only" style="display: none;">
+                        <i class="fas fa-user-cog w-6 text-center"></i> <span class="font-medium text-sm">Kelola User</span>
+                    </button>
+                </nav>
+
+                <div class="p-4 border-t border-white/5 space-y-2">
+                    <button onclick="toggleDarkMode()" class="w-full flex items-center justify-between gap-3 p-3 rounded-xl bg-white/5 hover:bg-white/10 transition-all">
+                        <div class="flex items-center gap-3">
+                            <i class="fas fa-moon w-5 text-center"></i> <span class="text-sm">Dark Mode</span>
+                        </div>
+                        <div class="w-8 h-4 rounded-full bg-slate-600 relative">
+                            <div class="w-4 h-4 rounded-full bg-white absolute top-0 left-0 transition-all" id="dm-toggle"></div>
+                        </div>
+                    </button>
+                    <button onclick="logout()" class="w-full flex items-center gap-3 p-3 rounded-xl bg-red-500/10 hover:bg-red-500/20 text-red-400 hover:text-red-300 transition-all border border-red-500/20">
+                        <i class="fas fa-sign-out-alt w-5 text-center"></i> <span class="text-sm font-bold">Logout</span>
+                    </button>
+                </div>
+            </aside>
+
+            <div class="flex-1 flex flex-col h-full overflow-hidden relative">
+                <header class="glass-card border-b border-white/5 p-4 flex items-center justify-between md:justify-end gap-4">
+                    <button onclick="toggleSidebar()" class="md:hidden text-slate-300 p-2 hover:bg-white/10 rounded-lg">
+                        <i class="fas fa-bars text-xl"></i>
+                    </button>
+                    <div class="flex items-center gap-3">
+                        <div class="text-right hidden sm:block">
+                            <div class="text-xs font-bold text-primary">Online</div>
+                            <div class="text-[10px] text-slate-500" id="current-user-display">Loading...</div>
+                        </div>
+                        <div class="w-10 h-10 rounded-full bg-gradient-to-br from-slate-700 to-slate-900 border border-white/10 flex items-center justify-center text-accent shadow-inner">
+                            <i class="fas fa-user-shield"></i>
+                        </div>
+                    </div>
+                </header>
+
+                <main class="flex-1 overflow-y-auto p-4 md:p-8 relative">
+                    
+                    <!-- DASHBOARD TAB -->
+                    <div id="dashboard" class="tab-content active space-y-6">
+                        <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                            <div class="glass-card p-4 rounded-2xl border-l-4 border-emerald-500">
+                                <div class="text-slate-400 text-[10px] uppercase font-bold mb-1">Pemasukan</div>
+                                <div id="stat-pemasukan" class="text-xl font-bold text-white">Rp 0</div>
+                            </div>
+                            <div class="glass-card p-4 rounded-2xl border-l-4 border-red-500">
+                                <div class="text-slate-400 text-[10px] uppercase font-bold mb-1">Pengeluaran</div>
+                                <div id="stat-pengeluaran" class="text-xl font-bold text-white">Rp 0</div>
+                            </div>
+                            <div class="glass-card p-4 rounded-2xl border-l-4 border-primary">
+                                <div class="text-slate-400 text-[10px] uppercase font-bold mb-1">Saldo Bersih</div>
+                                <div id="stat-saldo" class="text-xl font-bold text-primary">Rp 0</div>
+                            </div>
+                            <div class="glass-card p-4 rounded-2xl border-l-4 border-warning">
+                                <div class="text-slate-400 text-[10px] uppercase font-bold mb-1">Tunggakan</div>
+                                <div id="stat-tunggakan" class="text-xl font-bold text-warning">Rp 0</div>
+                            </div>
+                        </div>
+
+                        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                            <div class="lg:col-span-2 glass-card rounded-2xl p-5">
+                                <div class="flex justify-between items-center mb-4">
+                                    <h3 class="font-bold text-sm text-slate-200">Aktivitas Terbaru</h3>
+                                    <button onclick="showTab('transactions')" class="text-xs text-primary hover:text-white transition">Lihat Semua</button>
+                                </div>
+                                <div class="overflow-x-auto">
+                                    <table class="w-full text-xs text-left">
+                                        <thead class="text-slate-400 border-b border-white/5">
+                                            <tr>
+                                                <th class="py-2">Tanggal</th>
+                                                <th class="py-2">Nama</th>
+                                                <th class="py-2 text-right">Nominal</th>
+                                                <th class="py-2 text-center">Status</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="recent-trans-body" class="text-slate-300"></tbody>
+                                    </table>
+                                </div>
+                            </div>
+
+                            <div class="glass-card rounded-2xl p-5 flex flex-col items-center justify-center">
+                                <h3 class="font-bold text-sm text-slate-200 mb-2 w-full text-left">Pembagian</h3>
+                                <div class="w-full h-48 relative">
+                                    <canvas id="monthlyChart"></canvas>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- TRANSACTIONS TAB -->
+                    <div id="transactions" class="tab-content space-y-6">
+                        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                            <div class="glass-card rounded-2xl p-6 h-fit">
+                                <h3 class="font-bold text-lg text-white mb-4">Input Transaksi</h3>
+                                <form id="form-transaksi" class="space-y-4">
+                                    <select id="t-jenis" onchange="updateDefaultPrice()" class="w-full p-3 rounded-xl bg-white/5 border-white/10">
+                                        <option value="pemasukan" class="text-black">Pemasukan (Bayar)</option>
+                                        <option value="pengeluaran" class="text-black">Pengeluaran (Tagihan)</option>
+                                    </select>
+                                    <select id="t-kategori" onchange="updateDefaultPrice()" class="w-full p-3 rounded-xl bg-white/5 border-white/10">
+                                        <option value="internet" class="text-black">Internet</option>
+                                        <option value="gas" class="text-black">Gas</option>
+                                    </select>
+                                    <select id="t-pelanggan" onchange="updateDefaultPrice()" class="w-full p-3 rounded-xl bg-white/5 border-white/10 text-slate-300" required>
+                                        <option value="">-- Pilih Pelanggan --</option>
+                                    </select>
+                                    <input type="number" id="t-jumlah" class="w-full p-3 rounded-xl bg-white/5 border-white/10" placeholder="Jumlah (Rp)" min="1" required>
+                                    <input type="text" id="t-deskripsi" class="w-full p-3 rounded-xl bg-white/5 border-white/10" placeholder="Deskripsi (opsional)">
+                                    <button type="submit" class="w-full bg-primary hover:bg-secondary text-white font-bold py-3 rounded-xl transition shadow-lg shadow-primary/20">Simpan</button>
+                                </form>
+                            </div>
+
+                            <div class="lg:col-span-2 glass-card rounded-2xl p-6">
+                                <div class="flex flex-wrap justify-between items-center mb-4 gap-2">
+                                    <h3 class="font-bold text-lg text-white">Riwayat Transaksi</h3>
+                                    <div class="flex gap-2">
+                                        <select id="filter-status" onchange="loadTransactions()" class="bg-white/5 border-white/10 rounded-lg p-2 text-xs">
+                                            <option value="">Semua Status</option>
+                                            <option value="lunas">Lunas</option>
+                                            <option value="pending">Pending</option>
+                                        </select>
+                                        <select id="filter-jenis" onchange="loadTransactions()" class="bg-white/5 border-white/10 rounded-lg p-2 text-xs">
+                                            <option value="">Semua Jenis</option>
+                                            <option value="pemasukan">Pemasukan</option>
+                                            <option value="pengeluaran">Pengeluaran</option>
+                                        </select>
+                                        <button onclick="exportCSV()" class="bg-white/5 hover:bg-white/10 border border-white/10 px-3 py-2 rounded-lg text-xs">Export CSV</button>
+                                    </div>
+                                </div>
+                                <div class="overflow-x-auto max-h-[500px]">
+                                    <table class="w-full text-sm text-left">
+                                        <thead class="text-slate-400 bg-white/5 sticky top-0 backdrop-blur-md">
+                                            <tr>
+                                                <th class="p-3">Tanggal</th>
+                                                <th class="p-3">Nama</th>
+                                                <th class="p-3">Kategori</th>
+                                                <th class="p-3 text-right">Jumlah</th>
+                                                <th class="p-3 text-center">Status</th>
+                                                <th class="p-3 text-center">Aksi</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="full-trans-body" class="divide-y divide-white/5"></tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- CUSTOMERS TAB -->
+                    <div id="customers" class="tab-content space-y-6">
+                        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                            <div class="glass-card rounded-2xl p-6">
+                                <h3 class="font-bold text-lg text-white mb-4">Tambah Pelanggan</h3>
+                                <form id="form-pelanggan" class="space-y-4">
+                                    <input type="text" id="p-nama" placeholder="Nama Lengkap" class="w-full p-3 rounded-xl bg-white/5 border-white/10" required>
+                                    <div class="grid grid-cols-2 gap-2">
+                                        <select id="p-tipe" onchange="toggleCustomerFields()" class="w-full p-3 rounded-xl bg-white/5 border-white/10">
+                                            <option value="internet" class="text-black">Internet/PPPoE</option>
+                                            <option value="gas" class="text-black">Gas</option>
+                                        </select>
+                                        <input type="tel" id="p-whatsapp" placeholder="No. WA (08...)" class="w-full p-3 rounded-xl bg-white/5 border-white/10" required>
+                                    </div>
+                                    <div id="pppoe-fields" class="grid grid-cols-2 gap-2">
+                                        <input type="text" id="p-username" placeholder="User PPPoE" class="w-full p-3 rounded-xl bg-white/5 border-white/10">
+                                        <input type="text" id="p-password" placeholder="Pass PPPoE" class="w-full p-3 rounded-xl bg-white/5 border-white/10">
+                                    </div>
+                                    <input type="text" id="p-alamat" placeholder="Alamat (opsional)" class="w-full p-3 rounded-xl bg-white/5 border-white/10">
+                                    <button type="submit" class="w-full bg-emerald-500 hover:bg-emerald-600 text-white font-bold py-3 rounded-xl shadow-lg shadow-emerald-500/20">Tambah</button>
+                                </form>
+                            </div>
+                            
+                            <div class="lg:col-span-2 glass-card rounded-2xl p-6">
+                                <div class="flex justify-between items-center mb-4">
+                                    <h3 class="font-bold text-lg text-white">Database Pelanggan</h3>
+                                    <input type="text" id="customer-search" onkeyup="loadCustomers()" placeholder="Cari nama..." class="bg-white/5 border-white/10 rounded-lg px-3 py-2 text-sm w-48">
+                                </div>
+                                <div id="customer-list-container" class="grid grid-cols-1 sm:grid-cols-2 gap-4 max-h-[600px] overflow-y-auto pr-2"></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- WHATSAPP TAB -->
+                    <div id="whatsapp" class="tab-content">
+                        <div class="max-w-3xl mx-auto glass-card rounded-3xl p-8 border border-white/5">
+                            <div class="text-center mb-8">
+                                <div class="inline-flex items-center justify-center w-20 h-20 rounded-2xl bg-gradient-to-br from-emerald-500 to-green-600 mb-4 shadow-lg shadow-emerald-500/30">
+                                    <i class="fab fa-whatsapp text-4xl text-white"></i>
+                                </div>
+                                <h3 class="text-2xl font-bold text-white">WhatsApp Integration</h3>
+                                <p class="text-slate-400 text-sm mt-2">Kirim tagihan otomatis ke pelanggan</p>
+                            </div>
+
+                            <div class="glass-card rounded-2xl p-6 border border-white/5">
+                                <h4 class="font-bold text-white mb-4">
+                                    <i class="fas fa-paper-plane mr-2 text-emerald-400"></i>Kirim Pesan
+                                </h4>
+
+                                <div class="space-y-4">
+                                    <div>
+                                        <label class="block text-xs text-slate-400 uppercase mb-2">Pilih Pelanggan</label>
+                                        <select id="wa-select-customer" onchange="updateWAFromCustomer()" class="w-full p-4 rounded-2xl bg-white/5 border-white/10">
+                                            <option value="">-- Kirim ke Semua dengan Tunggakan --</option>
+                                        </select>
+                                    </div>
+
+                                    <div>
+                                        <label class="block text-xs text-slate-400 uppercase mb-2">Tipe Pesan</label>
+                                        <div class="flex gap-2 mb-3">
+                                            <button onclick="setTemplate('internet')" id="btn-tpl-internet" class="flex-1 py-2 px-3 rounded-lg text-xs font-medium transition border border-primary bg-primary/20 text-primary">
+                                                <i class="fas fa-wifi mr-1"></i> Internet/PPPoE
+                                            </button>
+                                            <button onclick="setTemplate('gas')" id="btn-tpl-gas" class="flex-1 py-2 px-3 rounded-lg text-xs font-medium transition border border-white/10 bg-white/5 text-slate-400">
+                                                <i class="fas fa-fire mr-1"></i> Gas
+                                            </button>
+                                        </div>
+                                        <label class="block text-xs text-slate-400 uppercase mb-2">Template Pesan</label>
+                                        <textarea id="wa-msg" rows="6" class="w-full p-4 rounded-2xl bg-white/5 border-white/10 font-mono text-sm" placeholder="Pilih tipe pelanggan untuk melihat template..."></textarea>
+                                        <p class="text-[10px] text-slate-500 mt-2">
+                                            <i class="fas fa-info-circle mr-1"></i>
+                                            Variabel: {nama}, {jumlah}, {tipe}, {tanggal}, {periode}
+                                        </p>
+                                    </div>
+
+                                    <button onclick="sendWA()" class="w-full bg-gradient-to-r from-emerald-500 to-green-600 hover:opacity-90 text-white font-bold py-4 rounded-2xl shadow-lg shadow-emerald-500/20 transition transform active:scale-95">
+                                        <i class="fab fa-whatsapp mr-2"></i>Kirim Pesan
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div id="wa-broadcast-stats" class="mt-6 glass-card rounded-2xl p-6 border border-emerald-500/20 hidden">
+                                <h4 class="font-bold text-white mb-4">
+                                    <i class="fas fa-chart-bar mr-2 text-emerald-400"></i>Hasil Broadcast
+                                </h4>
+                                <div class="grid grid-cols-3 gap-4">
+                                    <div class="text-center p-4 bg-white/5 rounded-xl">
+                                        <div id="wa-total-sent" class="text-2xl font-bold text-white">0</div>
+                                        <div class="text-xs text-slate-400">Total</div>
+                                    </div>
+                                    <div class="text-center p-4 bg-emerald-500/10 rounded-xl">
+                                        <div id="wa-success-sent" class="text-2xl font-bold text-emerald-400">0</div>
+                                        <div class="text-xs text-slate-400">Berhasil</div>
+                                    </div>
+                                    <div class="text-center p-4 bg-red-500/10 rounded-xl">
+                                        <div id="wa-failed-sent" class="text-2xl font-bold text-red-400">0</div>
+                                        <div class="text-xs text-slate-400">Gagal</div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div id="wa-preview" class="mt-6 glass-card rounded-2xl p-6 border border-white/5">
+                                <h4 class="font-bold text-white mb-4">
+                                    <i class="fas fa-eye mr-2 text-accent"></i>Preview Pesan
+                                </h4>
+                                <div id="wa-preview-content" class="bg-black/30 rounded-xl p-4 font-mono text-xs text-slate-300 whitespace-pre-wrap leading-relaxed max-h-64 overflow-y-auto"></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- REPORTS TAB -->
+                    <div id="reports" class="tab-content space-y-6">
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div class="glass-card rounded-2xl p-6">
+                                <h3 class="font-bold text-lg text-white mb-4">Manajemen Data</h3>
+                                <div class="space-y-3">
+                                    <button onclick="exportCSV()" class="w-full bg-blue-500/20 text-blue-300 border border-blue-500/30 hover:bg-blue-500/30 py-3 rounded-xl font-medium flex items-center justify-center gap-2">
+                                        <i class="fas fa-file-csv"></i> Export CSV
+                                    </button>
+                                    <button onclick="exportJSON()" class="w-full bg-purple-500/20 text-purple-300 border border-purple-500/30 hover:bg-purple-500/30 py-3 rounded-xl font-medium flex items-center justify-center gap-2">
+                                        <i class="fas fa-file-code"></i> Backup JSON
+                                    </button>
+                                    <div class="pt-4 border-t border-white/10">
+                                        <label class="block text-xs text-slate-400 mb-2">Restore Backup (Admin)</label>
+                                        <div class="flex gap-2">
+                                            <input type="file" id="restore-file" accept=".json" class="flex-1 p-2 rounded-lg bg-white/5 border-white/10 text-sm">
+                                            <button onclick="restoreData()" class="bg-green-500 hover:bg-green-600 text-white px-4 rounded-lg">Load</button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="glass-card rounded-2xl p-6">
+                                <h3 class="font-bold text-lg text-white mb-4">Visualisasi Tahunan</h3>
+                                <div class="h-64 relative">
+                                    <canvas id="yearlyChart"></canvas>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- SETTINGS TAB (Admin Only) -->
+                    <div id="settings" class="tab-content">
+                        <div class="max-w-md mx-auto glass-card rounded-3xl p-8">
+                            <h3 class="font-bold text-xl text-white mb-6">Konfigurasi Sistem</h3>
+                            <div class="space-y-5">
+                                <div>
+                                    <label class="text-xs text-slate-400 uppercase">Harga Tagihan Internet</label>
+                                    <input type="number" id="s-price-net" class="w-full p-3 mt-1 rounded-xl bg-white/5 border-white/10" value="150000">
+                                    <p class="text-[10px] text-slate-500 mt-1">Harga default untuk tagihan pelanggan PPPoE/Internet</p>
+                                </div>
+                                <div>
+                                    <label class="text-xs text-slate-400 uppercase">Harga Penjualan Gas</label>
+                                    <input type="number" id="s-price-gas" class="w-full p-3 mt-1 rounded-xl bg-white/5 border-white/10" value="22000">
+                                    <p class="text-[10px] text-slate-500 mt-1">Harga default untuk faktur pelanggan Gas</p>
+                                </div>
+                                <button onclick="saveSettings()" class="w-full bg-primary hover:bg-secondary text-white font-bold py-3 rounded-xl">Simpan</button>
+                                
+                                <div class="pt-6 mt-6 border-t border-white/10">
+                                    <h4 class="text-xs font-bold text-red-400 uppercase mb-3">Danger Zone</h4>
+                                    <button onclick="resetSystem()" class="w-full bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/30 py-3 rounded-xl font-bold">
+                                        Reset Database
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- USERS MANAGEMENT TAB (Admin Only) -->
+                    <div id="users" class="tab-content">
+                        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                            <div class="glass-card rounded-2xl p-6">
+                                <h3 class="font-bold text-lg text-white mb-4">Tambah User</h3>
+                                <form id="form-user" class="space-y-4">
+                                    <input type="text" id="u-username" placeholder="Username" class="w-full p-3 rounded-xl bg-white/5 border-white/10" required>
+                                    <input type="password" id="u-password" placeholder="Password" class="w-full p-3 rounded-xl bg-white/5 border-white/10" required>
+                                    <input type="text" id="u-nama" placeholder="Nama Lengkap" class="w-full p-3 rounded-xl bg-white/5 border-white/10" required>
+                                    <select id="u-role" class="w-full p-3 rounded-xl bg-white/5 border-white/10">
+                                        <option value="staff" class="text-black">Staff</option>
+                                        <option value="admin" class="text-black">Admin</option>
+                                    </select>
+                                    <button type="submit" class="w-full bg-primary hover:bg-secondary text-white font-bold py-3 rounded-xl">Tambah User</button>
+                                </form>
+                            </div>
+                            
+                            <div class="lg:col-span-2 glass-card rounded-2xl p-6">
+                                <h3 class="font-bold text-lg text-white mb-4">Daftar User</h3>
+                                <div class="overflow-x-auto">
+                                    <table class="w-full text-sm text-left">
+                                        <thead class="text-slate-400 bg-white/5">
+                                            <tr>
+                                                <th class="p-3">Username</th>
+                                                <th class="p-3">Nama</th>
+                                                <th class="p-3">Role</th>
+                                                <th class="p-3">Status</th>
+                                                <th class="p-3 text-center">Aksi</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="users-list-body" class="divide-y divide-white/5"></tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                </main>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // ==================== CONFIGURATION ====================
+        const DB_KEY = 'pppoe_billing_data';
+        const USERS_KEY = 'pppoe_billing_users';
+        const SETTINGS_KEY = 'pppoe_billing_settings';
+        let currentUser = null;
+
+        // Default users
+        const DEFAULT_USERS = [
+            { id: 1, username: 'admin', password: 'admin', nama_lengkap: 'Administrator', role: 'admin', aktif: true },
+            { id: 2, username: 'staff', password: 'staff', nama_lengkap: 'Staff Kasir', role: 'staff', aktif: true }
+        ];
+
+        // Default settings
+        const DEFAULT_SETTINGS = {
+            internet: 150000,
+            gas: 22000
+        };
+
+        // WhatsApp Templates (Tanpa Username/Password)
+        const WA_TEMPLATES = {
+            internet: `🏠 *NOTIFIKASI TAGIHAN INTERNET*
+
+Halo {nama}!
+
+📅 Periode : {periode}
+
+💰 *Total Tagihan: Rp {jumlah}*
+
+Mohon segera lakukan pembayaran agar layanan tetap aktif.
+
+Terima kasih! 🙏
+
+* BillingPro - Smart Management *`,
+
+            gas: `🔥 *FAKTUR PENJUALAN GAS*
+
+Halo {nama}!
+
+📅 Tanggal : {tanggal}
+⛽ Jenis   : Gas {tipe}
+
+💰 *Total Pembayaran: Rp {jumlah}*
+
+Silakan lakukan pembayaran sesuai nominal di atas.
+
+Hormat kami,
+* BillingPro - Smart Management *`
+        };
+
+        let currentTemplateType = 'internet';
+        let chartInstance = null;
+        let yearChartInstance = null;
+
+        // ==================== DATA MANAGEMENT ====================
+        function getData(key) {
+            const data = localStorage.getItem(key);
+            if (data) {
+                try {
+                    return JSON.parse(data);
+                } catch (e) {
+                    return null;
+                }
+            }
+            return null;
+        }
+
+        function setData(key, value) {
+            localStorage.setItem(key, JSON.stringify(value));
+        }
+
+        function initDatabase() {
+            // Initialize users
+            if (!getData(USERS_KEY)) {
+                setData(USERS_KEY, DEFAULT_USERS);
+            }
+            
+            // Initialize settings
+            if (!getData(SETTINGS_KEY)) {
+                setData(SETTINGS_KEY, DEFAULT_SETTINGS);
+            }
+
+            // Initialize main data
+            if (!getData(DB_KEY)) {
+                setData(DB_KEY, { customers: [], transactions: [] });
+            }
+        }
+
+        function getDB() {
+            return getData(DB_KEY) || { customers: [], transactions: [] };
+        }
+
+        function setDB(data) {
+            setData(DB_KEY, data);
+        }
+
+        function getSettings() {
+            return getData(SETTINGS_KEY) || DEFAULT_SETTINGS;
+        }
+
+        function setSettings(s) {
+            setData(SETTINGS_KEY, s);
+        }
+
+        function getUsers() {
+            return getData(USERS_KEY) || DEFAULT_USERS;
+        }
+
+        function setUsers(users) {
+            setData(USERS_KEY, users);
+        }
+
+        // ==================== UI HELPERS ====================
+        function showToast(msg, type = 'info') {
+            const el = document.getElementById('toast');
+            const icon = document.getElementById('toast-icon');
+            const txt = document.getElementById('toast-msg');
+            
+            const colors = { success: 'bg-emerald-500', error: 'bg-red-500', info: 'bg-blue-500', warning: 'bg-orange-500' };
+            const icons = { success: 'fa-check-circle', error: 'fa-exclamation-circle', info: 'fa-info-circle', warning: 'fa-bell' };
+            
+            el.className = `fixed bottom-5 right-5 z-[100] min-w-[250px] px-4 py-3 rounded-xl shadow-xl transform transition-all duration-300 font-medium text-sm flex items-center gap-3 ${colors[type]} text-white`;
+            icon.className = `fas ${icons[type]}`;
+            txt.innerText = msg;
+
+            requestAnimationFrame(() => el.classList.remove('translate-y-20', 'opacity-0'));
+            setTimeout(() => el.classList.add('translate-y-20', 'opacity-0'), 3000);
+        }
+
+        function formatIDR(num) {
+            if (!num) return 'Rp 0';
+            return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(num);
+        }
+
+        // ==================== AUTHENTICATION ====================
+        document.getElementById('login-form').addEventListener('submit', (e) => {
+            e.preventDefault();
+            const username = document.getElementById('login-user').value;
+            const password = document.getElementById('login-pass').value;
+            
+            const users = getUsers();
+            const user = users.find(u => u.username === username && u.password === password);
+            
+            if (user) {
+                if (!user.aktif) {
+                    showToast('Akun nonaktif', 'error');
+                    return;
+                }
+                currentUser = user;
+                sessionStorage.setItem('currentUser', JSON.stringify(user));
+                initApp();
+            } else {
+                const card = e.target.closest('.glass-card');
+                card.classList.add('animate-pulse', 'border-red-500');
+                setTimeout(() => card.classList.remove('animate-pulse', 'border-red-500'), 500);
+                showToast('Username/password salah', 'error');
+            }
+        });
+
+        function logout() {
+            if (confirm('Apakah Anda yakin ingin keluar?')) {
+                sessionStorage.removeItem('currentUser');
+                currentUser = null;
+                location.reload();
+            }
+        }
+
+        function startClock() {
+            const clockEl = document.getElementById('live-clock');
+            const dateEl = document.getElementById('live-date');
+            
+            function update() {
+                const now = new Date();
+                clockEl.textContent = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}:${String(now.getSeconds()).padStart(2, '0')}`;
+                if (dateEl) {
+                    dateEl.textContent = now.toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'short', year: 'numeric' });
+                }
+            }
+            update();
+            setInterval(update, 1000);
+        }
+
+        // ==================== INIT ====================
+        function initApp() {
+            // Check session
+            const savedUser = sessionStorage.getItem('currentUser');
+            if (savedUser) {
+                currentUser = JSON.parse(savedUser);
+            }
+
+            if (!currentUser) {
+                document.getElementById('login-page').classList.remove('hidden');
+                document.getElementById('app-content').classList.add('hidden');
+                return;
+            }
+
+            document.getElementById('login-page').classList.add('hidden');
+            document.getElementById('app-content').classList.remove('hidden');
+
+            // Update UI with user info
+            document.getElementById('user-role-display').textContent = `${currentUser.nama_lengkap} (${currentUser.role.toUpperCase()})`;
+            document.getElementById('current-user-display').textContent = currentUser.nama_lengkap;
+
+            // Show admin-only features
+            if (currentUser.role === 'admin') {
+                document.querySelectorAll('.admin-only').forEach(el => el.style.display = 'flex');
+            }
+
+            startClock();
+            
+            loadSettings();
+            renderAll();
+            setTemplate('internet');
+        }
+
+        // ==================== SIDEBAR ====================
+        function toggleSidebar() {
+            document.getElementById('sidebar').classList.toggle('active');
+            document.getElementById('overlay').classList.toggle('active');
+        }
+
+        // ==================== NAVIGATION ====================
+        function showTab(tabId) {
+            document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+            document.querySelectorAll('.nav-link').forEach(el => {
+                el.classList.remove('bg-white/10', 'text-white', 'border-l-4', 'border-primary');
+                el.classList.add('text-slate-300');
+            });
+
+            document.getElementById(tabId).classList.add('active');
+            
+            const btn = document.querySelector(`button[onclick="showTab('${tabId}')"]`);
+            if (btn) {
+                btn.classList.add('bg-white/10', 'text-white', 'border-l-4', 'border-primary');
+                btn.classList.remove('text-slate-300');
+            }
+
+            if (window.innerWidth < 768) toggleSidebar();
+
+            if (tabId === 'reports') renderYearlyChart();
+            if (tabId === 'users') loadUsers();
+            if (tabId === 'whatsapp') updateMessagePreview();
+        }
+
+        // ==================== DATA LOADING ====================
+        function loadSettings() {
+            const s = getSettings();
+            if (s) {
+                document.getElementById('s-price-net').value = s.internet;
+                document.getElementById('s-price-gas').value = s.gas;
+            }
+        }
+
+        function renderAll() {
+            loadStats();
+            loadTransactions();
+            loadCustomers();
+            updateSelects();
+        }
+
+        function loadStats() {
+            const db = getDB();
+            let income = 0, expense = 0, debt = 0;
+            
+            db.transactions.forEach(t => {
+                if (t.jenis === 'pemasukan') income += t.jumlah;
+                else {
+                    expense += t.jumlah;
+                    if (t.status === 'pending') debt += t.jumlah;
+                }
+            });
+
+            document.getElementById('stat-pemasukan').innerText = formatIDR(income);
+            document.getElementById('stat-pengeluaran').innerText = formatIDR(expense);
+            document.getElementById('stat-saldo').innerText = formatIDR(income - expense);
+            document.getElementById('stat-tunggakan').innerText = formatIDR(debt);
+
+            // Chart
+            const ctx = document.getElementById('monthlyChart')?.getContext('2d');
+            if (ctx) {
+                if (chartInstance) chartInstance.destroy();
+                chartInstance = new Chart(ctx, {
+                    type: 'doughnut',
+                    data: {
+                        labels: ['Pemasukan', 'Pengeluaran'],
+                        datasets: [{
+                            data: [income, expense],
+                            backgroundColor: ['#10b981', '#ef4444'],
+                            borderWidth: 0
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: { legend: { display: false } },
+                        cutout: '70%'
+                    }
+                });
+            }
+        }
+
+        function loadTransactions() {
+            const db = getDB();
+            const statusFilter = document.getElementById('filter-status')?.value || '';
+            const jenisFilter = document.getElementById('filter-jenis')?.value || '';
+
+            let filtered = db.transactions;
+            if (statusFilter) filtered = filtered.filter(t => t.status === statusFilter);
+            if (jenisFilter) filtered = filtered.filter(t => t.jenis === jenisFilter);
+
+            // Recent transactions
+            const recentBody = document.getElementById('recent-trans-body');
+            if (recentBody) {
+                const recent = [...filtered].reverse().slice(0, 5);
+                recentBody.innerHTML = recent.map(t => `
+                    <tr class="border-b border-white/5 last:border-0 hover:bg-white/5">
+                        <td class="py-3 text-slate-400">${new Date(t.date).toLocaleDateString()}</td>
+                        <td class="py-3">${t.customerName}</td>
+                        <td class="py-3 text-right font-mono ${t.jenis === 'pemasukan' ? 'text-emerald-400' : 'text-red-400'}">${formatIDR(t.jumlah)}</td>
+                        <td class="py-3 text-center"><span class="px-2 py-1 rounded bg-white/10 text-[10px] uppercase ${t.status === 'lunas' ? 'text-emerald-400' : 'text-orange-400'}">${t.status}</span></td>
+                    </tr>
+                `).join('');
+            }
+
+            // Full transactions
+            const fullBody = document.getElementById('full-trans-body');
+            if (fullBody) {
+                fullBody.innerHTML = filtered.reverse().map(t => `
+                    <tr class="hover:bg-white/5">
+                        <td class="p-3 text-slate-400 text-xs">${new Date(t.date).toLocaleDateString()}</td>
+                        <td class="p-3 font-medium">${t.customerName}<br><span class="text-[10px] text-slate-500">${t.kategori}</span></td>
+                        <td class="p-3 text-xs capitalize">${t.kategori}</td>
+                        <td class="p-3 font-mono text-right ${t.jenis === 'pemasukan' ? 'text-emerald-400' : 'text-red-400'}">${formatIDR(t.jumlah)}</td>
+                        <td class="p-3 text-center"><span class="text-xs uppercase ${t.status === 'lunas' ? 'text-emerald-400' : 'text-orange-400'}">${t.status}</span></td>
+                        <td class="p-3 text-center space-x-1">
+                            ${t.status === 'pending' ? `<button onclick="markLunas(${t.id})" class="text-emerald-400 hover:bg-emerald-400/20 p-2 rounded"><i class="fas fa-check"></i></button>` : ''}
+                            <button onclick="delTrans(${t.id})" class="text-red-400 hover:bg-red-400/20 p-2 rounded"><i class="fas fa-trash"></i></button>
+                        </td>
+                    </tr>
+                `).join('');
+            }
+        }
+
+        function loadCustomers() {
+            const db = getDB();
+            const search = document.getElementById('customer-search')?.value.toLowerCase() || '';
+            const filtered = db.customers.filter(c => c.nama.toLowerCase().includes(search));
+
+            const cList = document.getElementById('customer-list-container');
+            if (cList) {
+                cList.innerHTML = filtered.map(c => `
+                    <div class="bg-white/5 rounded-xl p-4 border border-white/5 flex justify-between items-start">
+                        <div class="flex-1">
+                            <div class="flex items-center gap-2">
+                                <span class="font-bold text-white">${c.nama}</span>
+                                <span class="text-[9px] px-2 py-0.5 rounded ${c.tipe === 'internet' ? 'bg-blue-500/20 text-blue-400' : 'bg-orange-500/20 text-orange-400'} uppercase">${c.tipe}</span>
+                            </div>
+                            <div class="text-xs text-slate-400 mt-1"><i class="fab fa-whatsapp"></i> ${c.whatsapp}</div>
+                            ${c.tipe === 'internet' ? `<div class="text-[10px] font-mono text-slate-500 mt-2 bg-black/20 p-1 rounded inline-block">U:${c.username || '-'} P:${c.password || '-'}</div>` : ''}
+                        </div>
+                        <button onclick="delCustomer(${c.id})" class="text-slate-500 hover:text-red-400 ml-2"><i class="fas fa-user-times"></i></button>
+                    </div>
+                `).join('');
+            }
+        }
+
+        function updateSelects() {
+            const db = getDB();
+            const selects = ['t-pelanggan', 'wa-select-customer'];
+            selects.forEach(id => {
+                const el = document.getElementById(id);
+                if (el) {
+                    const val = el.value;
+                    el.innerHTML = `<option value="">${id === 'wa-select-customer' ? '-- Kirim ke Semua dengan Tunggakan --' : '-- Pilih --'}</option>` + 
+                        db.customers.map(c => `<option value="${c.id}">${c.nama} (${c.tipe})</option>`).join('');
+                    el.value = val;
+                }
+            });
+        }
+
+        // ==================== TRANSACTIONS ====================
+        function updateDefaultPrice() {
+            const custId = document.getElementById('t-pelanggan').value;
+            const cat = document.getElementById('t-kategori').value;
+            const type = document.getElementById('t-jenis').value;
+            const input = document.getElementById('t-jumlah');
+            const s = getSettings();
+
+            if (custId) {
+                const db = getDB();
+                const customer = db.customers.find(c => c.id == custId);
+                if (customer && type === 'pemasukan') {
+                    input.value = (customer.tipe === 'internet') ? s.internet : s.gas;
+                    document.getElementById('t-kategori').value = customer.tipe;
+                }
+            } else if (type === 'pemasukan') {
+                input.value = (cat === 'internet') ? s.internet : s.gas;
+            } else {
+                input.value = '';
+            }
+        }
+
+        document.getElementById('form-transaksi').addEventListener('submit', (e) => {
+            e.preventDefault();
+            const db = getDB();
+            const custId = document.getElementById('t-pelanggan').value;
+            const jumlah = document.getElementById('t-jumlah').value;
+            const jenis = document.getElementById('t-jenis').value;
+            const kategori = document.getElementById('t-kategori').value;
+            const deskripsi = document.getElementById('t-deskripsi').value;
+
+            if (!custId) return showToast('Pilih customer dulu!', 'warning');
+
+            const customer = db.customers.find(c => c.id == custId);
+            db.transactions.push({
+                id: Date.now(),
+                date: new Date().toISOString(),
+                customerId: custId,
+                customerName: customer ? customer.nama : 'Unknown',
+                customerTipe: customer ? customer.tipe : kategori,
+                jumlah: parseInt(jumlah),
+                jenis: jenis,
+                kategori: kategori,
+                deskripsi: deskripsi,
+                status: jenis === 'pemasukan' ? 'lunas' : 'pending'
+            });
+
+            setDB(db);
+            renderAll();
+            showToast('Transaksi Tersimpan', 'success');
+            e.target.reset();
+        });
+
+        function markLunas(id) {
+            const db = getDB();
+            const idx = db.transactions.findIndex(t => t.id == id);
+            if (idx > -1) {
+                const t = db.transactions[idx];
+                // Create income record
+                db.transactions.push({
+                    id: Date.now() + 1,
+                    date: new Date().toISOString(),
+                    customerId: t.customerId,
+                    customerName: t.customerName,
+                    customerTipe: t.customerTipe,
+                    jumlah: t.jumlah,
+                    jenis: 'pemasukan',
+                    kategori: t.kategori,
+                    deskripsi: 'Pembayaran',
+                    status: 'lunas',
+                    isAuto: true
+                });
+                // Update original status
+                t.status = 'lunas';
+                setDB(db);
+                renderAll();
+                showToast('Tagihan Dibayar & Pemasukan Dicatat', 'success');
+            }
+        }
+
+        function delTrans(id) {
+            if (!confirm('Hapus transaksi?')) return;
+            const db = getDB();
+            db.transactions = db.transactions.filter(t => t.id != id);
+            setDB(db);
+            renderAll();
+            showToast('Transaksi Dihapus', 'info');
+        }
+
+        // ==================== CUSTOMERS ====================
+        function toggleCustomerFields() {
+            const t = document.getElementById('p-tipe').value;
+            document.getElementById('pppoe-fields').style.display = t === 'internet' ? 'grid' : 'none';
+        }
+
+        document.getElementById('form-pelanggan').addEventListener('submit', (e) => {
+            e.preventDefault();
+            const db = getDB();
+            const wa = document.getElementById('p-whatsapp').value.trim();
+            
+            if (!/^08\d{8,11}$/.test(wa)) {
+                showToast('Format WhatsApp salah (08xx...)', 'error');
+                return;
+            }
+
+            db.customers.push({
+                id: Date.now(),
+                nama: document.getElementById('p-nama').value.trim(),
+                tipe: document.getElementById('p-tipe').value,
+                whatsapp: wa,
+                username: document.getElementById('p-username').value.trim(),
+                password: document.getElementById('p-password').value.trim(),
+                alamat: document.getElementById('p-alamat').value.trim()
+            });
+
+            setDB(db);
+            e.target.reset();
+            toggleCustomerFields();
+            renderAll();
+            showToast('Pelanggan Ditambahkan', 'success');
+        });
+
+        function delCustomer(id) {
+            if (!confirm('Hapus pelanggan?')) return;
+            const db = getDB();
+            db.customers = db.customers.filter(c => c.id != id);
+            setDB(db);
+            renderAll();
+            showToast('Pelanggan Dihapus', 'info');
+        }
+
+        // ==================== WHATSAPP ====================
+        function setTemplate(type) {
+            currentTemplateType = type;
+            
+            const btnInternet = document.getElementById('btn-tpl-internet');
+            const btnGas = document.getElementById('btn-tpl-gas');
+            
+            if (type === 'internet') {
+                btnInternet.className = 'flex-1 py-2 px-3 rounded-lg text-xs font-medium transition border border-primary bg-primary/20 text-primary';
+                btnGas.className = 'flex-1 py-2 px-3 rounded-lg text-xs font-medium transition border border-white/10 bg-white/5 text-slate-400';
+            } else {
+                btnInternet.className = 'flex-1 py-2 px-3 rounded-lg text-xs font-medium transition border border-white/10 bg-white/5 text-slate-400';
+                btnGas.className = 'flex-1 py-2 px-3 rounded-lg text-xs font-medium transition border border-primary bg-primary/20 text-primary';
+            }
+            
+            document.getElementById('wa-msg').value = WA_TEMPLATES[type];
+            updateMessagePreview();
+        }
+
+        async function updateTemplateByCustomer() {
+            const custId = document.getElementById('wa-select-customer').value;
+            if (!custId) {
+                setTemplate('internet');
+                return;
+            }
+            
+            const db = getDB();
+            const customer = db.customers.find(c => c.id == custId);
+            if (customer) {
+                setTemplate(customer.tipe);
+            }
+        }
+
+        async function updateWAFromCustomer() {
+            await updateTemplateByCustomer();
+            updateMessagePreview();
+        }
+
+        function formatMessage(template, customer, amount) {
+            const period = new Date().toLocaleDateString('id-ID', { month: 'long', year: 'numeric' });
+            const today = new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' });
+
+            return template
+                .replace(/\{nama\}/g, customer.nama || 'Pelanggan')
+                .replace(/\{jumlah\}/g, amount.toLocaleString('id-ID'))
+                .replace(/\{tipe\}/g, customer.tipe === 'internet' ? 'Internet/PPPoE' : 'LPG 3kg')
+                .replace(/\{tanggal\}/g, today)
+                .replace(/\{periode\}/g, period);
+        }
+
+        function updateMessagePreview() {
+            const preview = document.getElementById('wa-preview-content');
+            const template = document.getElementById('wa-msg').value;
+            const custId = document.getElementById('wa-select-customer').value;
+            
+            let previewText = template;
+            
+            if (custId) {
+                const db = getDB();
+                const customer = db.customers.find(c => c.id == custId);
+                if (customer) {
+                    const debt = db.transactions.filter(t => t.customerId == custId && t.status === 'pending').reduce((a, b) => a + b.jumlah, 0);
+                    previewText = formatMessage(template, customer, debt);
+                }
+            } else {
+                const exampleCustomer = { nama: 'Nama Pelanggan', tipe: currentTemplateType };
+                previewText = formatMessage(template, exampleCustomer, 150000);
+            }
+            
+            if (preview) preview.textContent = previewText;
+        }
+
+        function sendWA() {
+            const db = getDB();
+            const custId = document.getElementById('wa-select-customer').value;
+            const template = document.getElementById('wa-msg').value;
+            let targets = [];
+
+            if (custId) {
+                const c = db.customers.find(x => x.id == custId);
+                if (c) targets.push(c);
+            } else {
+                const debtors = [...new Set(db.transactions.filter(t => t.status === 'pending').map(t => t.customerId))];
+                targets = db.customers.filter(c => debtors.includes(String(c.id)));
+            }
+
+            if (targets.length === 0) return showToast('Tidak ada target', 'warning');
+
+            targets.forEach((c, i) => {
+                setTimeout(() => {
+                    const debt = db.transactions.filter(t => t.customerId == c.id && t.status === 'pending').reduce((a, b) => a + b.jumlah, 0);
+                    
+                    // Use appropriate template based on customer type
+                    let msgTemplate = template;
+                    if (currentTemplateType !== c.tipe) {
+                        msgTemplate = c.tipe === 'internet' ? WA_TEMPLATES.internet : WA_TEMPLATES.gas;
+                    }
+
+                    let msg = formatMessage(msgTemplate, c, debt);
+                    const phone = c.whatsapp.replace(/\D/g, '').replace(/^0/, '62');
+                    window.open(`https://wa.me/${phone}?text=${encodeURIComponent(msg)}`, '_blank');
+                }, i * 1500);
+            });
+            showToast(`Membuka ${targets.length} chat WhatsApp Web...`, 'success');
+
+            // Show stats
+            const stats = document.getElementById('wa-broadcast-stats');
+            stats.classList.remove('hidden');
+            document.getElementById('wa-total-sent').innerText = targets.length;
+            document.getElementById('wa-success-sent').innerText = targets.length;
+            document.getElementById('wa-failed-sent').innerText = 0;
+        }
+
+        // ==================== REPORTS ====================
+        function renderYearlyChart() {
+            const db = getDB();
+            const ctx = document.getElementById('yearlyChart')?.getContext('2d');
+            if (!ctx) return;
+            
+            const months = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
+            const inData = new Array(12).fill(0);
+            const outData = new Array(12).fill(0);
+            
+            db.transactions.forEach(t => {
+                const m = new Date(t.date).getMonth();
+                if (t.jenis === 'pemasukan') inData[m] += t.jumlah;
+                else outData[m] += t.jumlah;
+            });
+            
+            if (yearChartInstance) yearChartInstance.destroy();
+            yearChartInstance = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: months,
+                    datasets: [
+                        { label: 'Pemasukan', data: inData, backgroundColor: '#10b981', borderRadius: 4 },
+                        { label: 'Pengeluaran', data: outData, backgroundColor: '#ef4444', borderRadius: 4 }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: { beginAtZero: true, ticks: { color: '#94a3b8' }, grid: { color: 'rgba(255,255,255,0.05)' } },
+                        x: { ticks: { color: '#94a3b8' }, grid: { display: false } }
+                    },
+                    plugins: { legend: { labels: { color: '#cbd5e1' } } }
+                }
+            });
+        }
+
+        function exportCSV() {
+            const db = getDB();
+            if (!db.transactions.length) return showToast('Data Kosong', 'warning');
+            
+            let csv = 'Tanggal,Nama,Kategori,Jenis,Jumlah,Status\n';
+            db.transactions.forEach(t => {
+                csv += `${new Date(t.date).toLocaleDateString()},"${t.customerName}","${t.kategori}",${t.jenis},${t.jumlah},${t.status}\n`;
+            });
+            
+            const blob = new Blob([csv], { type: 'text/csv' });
+            const a = document.createElement('a');
+            a.href = window.URL.createObjectURL(blob);
+            a.download = `Billing_${Date.now()}.csv`;
+            a.click();
+        }
+
+        function exportJSON() {
+            const data = {
+                exported_at: new Date().toISOString(),
+                exported_by: currentUser?.username || 'unknown',
+                data: getDB(),
+                settings: getSettings()
+            };
+            const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+            const a = document.createElement('a');
+            a.href = window.URL.createObjectURL(blob);
+            a.download = `Backup_${Date.now()}.json`;
+            a.click();
+        }
+
+        function restoreData() {
+            const file = document.getElementById('restore-file').files[0];
+            if (!file) return;
+            
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                try {
+                    const data = JSON.parse(e.target.result);
+                    if (data.data) setDB(data.data);
+                    if (data.settings) setSettings(data.settings);
+                    showToast('Data Dipulihkan', 'success');
+                    setTimeout(() => location.reload(), 1000);
+                } catch (err) {
+                    showToast('File Invalid', 'error');
+                }
+            };
+            reader.readAsText(file);
+        }
+
+        // ==================== SETTINGS ====================
+        function saveSettings() {
+            const s = {
+                internet: parseInt(document.getElementById('s-price-net').value),
+                gas: parseInt(document.getElementById('s-price-gas').value)
+            };
+            setSettings(s);
+            showToast('Pengaturan Disimpan', 'success');
+        }
+
+        function resetSystem() {
+            if (!confirm('Hapus SEMUA data? TIDAK BISA DIBALIKKAN!')) return;
+            
+            localStorage.clear();
+            showToast('Silakan refresh halaman', 'info');
+            setTimeout(() => location.reload(), 2000);
+        }
+
+        // ==================== USER MANAGEMENT ====================
+        function loadUsers() {
+            const users = getUsers();
+            const tbody = document.getElementById('users-list-body');
+            if (tbody) {
+                tbody.innerHTML = users.map(u => `
+                    <tr class="hover:bg-white/5">
+                        <td class="p-3 font-medium">${u.username}</td>
+                        <td class="p-3">${u.nama_lengkap}</td>
+                        <td class="p-3"><span class="text-xs uppercase ${u.role === 'admin' ? 'text-purple-400' : 'text-blue-400'}">${u.role}</span></td>
+                        <td class="p-3"><span class="text-xs ${u.aktif ? 'text-emerald-400' : 'text-red-400'}">${u.aktif ? 'Aktif' : 'Nonaktif'}</span></td>
+                        <td class="p-3 text-center space-x-1">
+                            ${u.id !== currentUser?.id ? `<button onclick="toggleUserStatus(${u.id}, ${u.aktif ? 0 : 1})" class="text-xs px-2 py-1 rounded ${u.aktif ? 'bg-red-500/20 text-red-400' : 'bg-emerald-500/20 text-emerald-400'}">${u.aktif ? 'Nonaktifkan' : 'Aktifkan'}</button>` : ''}
+                        </td>
+                    </tr>
+                `).join('');
+            }
+        }
+
+        document.getElementById('form-user').addEventListener('submit', (e) => {
+            e.preventDefault();
+            const users = getUsers();
+            
+            const username = document.getElementById('u-username').value;
+            if (users.find(u => u.username === username)) {
+                showToast('Username sudah ada', 'error');
+                return;
+            }
+
+            users.push({
+                id: Date.now(),
+                username: username,
+                password: document.getElementById('u-password').value,
+                nama_lengkap: document.getElementById('u-nama').value,
+                role: document.getElementById('u-role').value,
+                aktif: true
+            });
+            
+            setUsers(users);
+            showToast('User Ditambahkan', 'success');
+            e.target.reset();
+            loadUsers();
+        });
+
+        function toggleUserStatus(id, status) {
+            const users = getUsers();
+            const idx = users.findIndex(u => u.id === id);
+            if (idx > -1) {
+                users[idx].aktif = status === 1;
+                setUsers(users);
+                showToast('Status User Diubah', 'success');
+                loadUsers();
+            }
+        }
+
+        // ==================== DARK MODE ====================
+        function toggleDarkMode() {
+            document.documentElement.classList.toggle('dark');
+            const isDark = document.documentElement.classList.contains('dark');
+            localStorage.setItem('pppoe_dark', isDark);
+            const dot = document.getElementById('dm-toggle');
+            if (isDark) dot.classList.add('translate-x-4');
+            else dot.classList.remove('translate-x-4');
+        }
+
+        // ==================== INIT ====================
+        window.addEventListener('DOMContentLoaded', () => {
+            initDatabase();
+            
+            if (localStorage.getItem('pppoe_dark') === 'true') {
+                document.documentElement.classList.add('dark');
+                document.getElementById('dm-toggle').classList.add('translate-x-4');
+            }
+            
+            initApp();
+        });
+    </script>
+</body>
+</html>
